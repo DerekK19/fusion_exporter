@@ -13,7 +13,7 @@ DEBUG_LOG = False
 
 CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdExportAll'
 CMD_NAME = 'Export All Components'
-CMD_Description = 'Export all components from the current design as 3MF files. These can then be imported into a 3D slicer'
+CMD_Description = 'Export all components from the current design as STEP or STL files. These can then be imported into a 3D slicer'
 
 # Specify that the command will be promoted to the panel.
 IS_PROMOTED = True
