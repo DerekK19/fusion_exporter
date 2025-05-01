@@ -122,6 +122,15 @@ def command_execute(args: adsk.core.CommandEventArgs):
         return
     try:
         rootComponent = design.rootComponent
+        futil.log(f'Will export {rootComponent.occurrences.count} components')
+        if rootComponent.occurrences.count > 1:
+            sanitizedRoot = re.sub(r'[\\|/|:|?|.|"|<|>|\|]', '-', rootComponent.name)
+            unversionedRoot = sanitizedRoot.rsplit(' ', 1)[0]
+            exportRoot = os.path.join(exportFolder, f'{unversionedRoot}')
+            if not os.path.isdir(exportRoot):
+                os.mkdir(exportRoot)
+            futil.log(f'Files will be exported to {exportRoot}')
+            exportFolder = exportRoot
         for occurence in rootComponent.occurrences:
             if not occurence.isLightBulbOn:
                 continue
