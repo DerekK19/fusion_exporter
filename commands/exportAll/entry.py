@@ -97,6 +97,28 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     futil.add_handler(args.command.destroy, command_destroy, local_handlers=local_handlers)
 
 
+def exportComponent(exportManager: adsk.fusion.ExportManager, exportFolder: os.PathLike, typeInputItems, component: adsk.fusion.Component, stripVersion: bool):
+    futil.log(f'Files will be exported to {exportFolder}')
+    sanitizedName = re.sub(r'[\\|/|:|?|.|"|<|>|\|]', '-', component.name)
+    if stripVersion:
+        sanitizedName = sanitizedName.rsplit(' ', 1)[0]
+    for type_item in typeInputItems:
+        exportOptions = None
+        if type_item.isSelected:
+            exportType = type_item.name
+            if exportType == '3mf':
+                exportPath = os.path.join(exportFolder, f'{sanitizedName}.3mf')
+                exportOptions = exportManager.createC3MFExportOptions(component, exportPath)
+            elif exportType == 'STEP':
+                exportPath = os.path.join(exportFolder, f'{sanitizedName}.step')
+                exportOptions = exportManager.createSTEPExportOptions(exportPath, component)
+            elif exportType == 'STL':
+                exportPath = os.path.join(exportFolder, f'{sanitizedName}.stl')
+                exportOptions = exportManager.createSTLExportOptions(component, exportPath)
+        if not exportOptions is None:
+            exportManager.execute(exportOptions)
+            futil.log(f'Exported {component.name} to {exportPath}')
+
 # This event handler is called when the user clicks the OK button in the command dialog or
 # is immediately called after the created event not command inputs were created for the dialog.
 def command_execute(args: adsk.core.CommandEventArgs):
@@ -113,7 +135,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
     typeInput: adsk.core.addDropDownCommandInput = inputs.itemById('destination_type')
     typeInputItems = typeInput.listItems
 
-
     exportFolder = os.path.join(homeFolder, destinationFolder)
     design = adsk.fusion.Design.cast(app.activeProduct)
     exportManager = design.exportManager
@@ -122,38 +143,26 @@ def command_execute(args: adsk.core.CommandEventArgs):
         return
     try:
         rootComponent = design.rootComponent
-        futil.log(f'Will export {rootComponent.occurrences.count} components')
-        if rootComponent.occurrences.count > 1:
-            sanitizedRoot = re.sub(r'[\\|/|:|?|.|"|<|>|\|]', '-', rootComponent.name)
-            unversionedRoot = sanitizedRoot.rsplit(' ', 1)[0]
-            exportRoot = os.path.join(exportFolder, f'{unversionedRoot}')
-            if not os.path.isdir(exportRoot):
-                os.mkdir(exportRoot)
-            futil.log(f'Files will be exported to {exportRoot}')
-            exportFolder = exportRoot
-        for occurence in rootComponent.occurrences:
-            if not occurence.isLightBulbOn:
-                continue
-            component = occurence.component
-            if not component:
-                continue
-            sanitizedName = re.sub(r'[\\|/|:|?|.|"|<|>|\|]', '-', component.name)
-            for type_item in typeInputItems:
-                exportOptions = None
-                if type_item.isSelected:
-                    exportType = type_item.name
-                    if exportType == '3mf':
-                        exportPath = os.path.join(exportFolder, f'{sanitizedName}.3mf')
-                        exportOptions = exportManager.createC3MFExportOptions(component, exportPath)
-                    elif exportType == 'STEP':
-                        exportPath = os.path.join(exportFolder, f'{sanitizedName}.step')
-                        exportOptions = exportManager.createSTEPExportOptions(exportPath, component)
-                    elif exportType == 'STL':
-                        exportPath = os.path.join(exportFolder, f'{sanitizedName}.stl')
-                        exportOptions = exportManager.createSTLExportOptions(component, exportPath)
-                if not exportOptions is None:
-                    exportManager.execute(exportOptions)
-                    futil.log(f'Exported {component.name} to {exportPath}')
+        if rootComponent.occurrences.count == 0:
+            futil.log(f'Will export the root component')
+            exportComponent(exportManager, exportFolder, typeInputItems, rootComponent, True)
+        else:
+            futil.log(f'Will export {rootComponent.occurrences.count} components')
+            if rootComponent.occurrences.count > 1:
+                sanitizedRoot = re.sub(r'[\\|/|:|?|.|"|<|>|\|]', '-', rootComponent.name)
+                unversionedRoot = sanitizedRoot.rsplit(' ', 1)[0]
+                exportRoot = os.path.join(exportFolder, f'{unversionedRoot}')
+                if not os.path.isdir(exportRoot):
+                    os.mkdir(exportRoot)
+                futil.log(f'Files will be exported to {exportRoot}')
+                exportFolder = exportRoot
+            for occurence in rootComponent.occurrences:
+                if not occurence.isLightBulbOn:
+                    continue
+                component = occurence.component
+                if not component:
+                    continue
+                exportComponent(exportManager, exportFolder, typeInputItems, component, False)
     except:  #pylint:disable=bare-except
         # Write the error message to the TEXT COMMANDS window.
         futil.log(f'Failed:\n{traceback.format_exc()}')

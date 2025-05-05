@@ -3,9 +3,9 @@
 	"type":	"addin",
 	"author":	"Derek Knight",
 	"description":	{
-		"":	"Export all components for 3D printing"
+		"":	"Export all components for 3D printing.<br/><ul><li>A design with no components will be exported as an STL/STEP file with the same name as the design.</li><li>A design with multiple components will be saved in a directory with the same name as the design, each component will be exported as a separate STL/STEP file with the same name as the component.</li></ul><br>In all cases the design's version number is removed"
 	},
-	"version":	"1.1.0",
+	"version":	"1.2.0",
 	"runOnStartup":	false,
 	"supportedOS":	"windows|mac",
 	"editEnabled":	true,
