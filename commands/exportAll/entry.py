@@ -71,7 +71,6 @@ def stop():
     if command_definition:
         command_definition.deleteMe()
 
-
 # Function that is called when a user clicks the corresponding button in the UI.
 # This defines the contents of the command dialog and connects to the command related events.
 def command_created(args: adsk.core.CommandCreatedEventArgs):
@@ -79,15 +78,23 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     if DEBUG_LOG:
         futil.log(f'{CMD_NAME} Command Created Event')
 
+    args.command.setDialogMinimumSize(317,200)
+
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
     inputs.addTextBoxCommandInput('destination_folder', 'Destination Folder', 'Development/3D Printing', 1, False)
+
     type_input = inputs.addDropDownCommandInput('destination_type', 'Destination Type', 1)
     type_input_items = type_input.listItems
     type_input_items.add('STL', False)
     type_input_items.add('STEP', True)
     type_input_items.add('3mf', False)
+
+    export_type = inputs.addRadioButtonGroupCommandInput('export_type', 'Export Type')
+    export_type_items = export_type.listItems
+    export_type_items.add('One file per component', True,)
+    export_type_items.add('One file, multiple bodies', False)
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -105,14 +112,14 @@ def exportComponent(exportManager: adsk.fusion.ExportManager, exportFolder: os.P
     for type_item in typeInputItems:
         exportOptions = None
         if type_item.isSelected:
-            exportType = type_item.name
-            if exportType == '3mf':
+            destinationType = type_item.name
+            if destinationType == '3mf':
                 exportPath = os.path.join(exportFolder, f'{sanitizedName}.3mf')
                 exportOptions = exportManager.createC3MFExportOptions(component, exportPath)
-            elif exportType == 'STEP':
+            elif destinationType == 'STEP':
                 exportPath = os.path.join(exportFolder, f'{sanitizedName}.step')
                 exportOptions = exportManager.createSTEPExportOptions(exportPath, component)
-            elif exportType == 'STL':
+            elif destinationType == 'STL':
                 exportPath = os.path.join(exportFolder, f'{sanitizedName}.stl')
                 exportOptions = exportManager.createSTLExportOptions(component, exportPath)
         if not exportOptions is None:
@@ -132,8 +139,11 @@ def command_execute(args: adsk.core.CommandEventArgs):
     inputs = args.command.commandInputs
     folderInput: adsk.core.TextBoxCommandInput = inputs.itemById('destination_folder')
     destinationFolder = folderInput.text
-    typeInput: adsk.core.addDropDownCommandInput = inputs.itemById('destination_type')
-    typeInputItems = typeInput.listItems
+    exportTypeInput: adsk.core.addRadioCommandInput = inputs.itemById('export_type')
+    exportTypeInputItems = exportTypeInput.listItems
+    exportType = exportTypeInput.selectedItem.name
+    destTypeInput: adsk.core.addDropDownCommandInput = inputs.itemById('destination_type')
+    destTypeInputItems = destTypeInput.listItems
 
     exportFolder = os.path.join(homeFolder, destinationFolder)
     design = adsk.fusion.Design.cast(app.activeProduct)
@@ -143,9 +153,12 @@ def command_execute(args: adsk.core.CommandEventArgs):
         return
     try:
         rootComponent = design.rootComponent
-        if rootComponent.occurrences.count == 0:
+        if exportType == 'One file, multiple bodies':
+            futil.log(f'Will export a file with multiple bodies')
+            exportComponent(exportManager, exportFolder, destTypeInputItems, rootComponent, True)
+        elif rootComponent.occurrences.count == 0:
             futil.log(f'Will export the root component')
-            exportComponent(exportManager, exportFolder, typeInputItems, rootComponent, True)
+            exportComponent(exportManager, exportFolder, destTypeInputItems, rootComponent, True)
         else:
             futil.log(f'Will export {rootComponent.occurrences.count} components')
             if rootComponent.occurrences.count > 1:
@@ -162,7 +175,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 component = occurence.component
                 if not component:
                     continue
-                exportComponent(exportManager, exportFolder, typeInputItems, component, False)
+                exportComponent(exportManager, exportFolder, destTypeInputItems, component, False)
     except:  #pylint:disable=bare-except
         # Write the error message to the TEXT COMMANDS window.
         futil.log(f'Failed:\n{traceback.format_exc()}')
